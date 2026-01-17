@@ -1,0 +1,23 @@
+{
+  "name": "fab-o2o",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Super App - Food Delivery, Ride-hailing, Dine-in QR",
+  "scripts": {
+    "dev": "pnpm --filter @fab-o2o/* dev",
+    "build": "pnpm --filter @fab-o2o/* build",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "test": "pnpm --filter @fab-o2o/* test",
+    "clean": "pnpm --filter @fab-o2o/* clean"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4"
+  },
+  "packageManager": "pnpm@9.14.2",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}
