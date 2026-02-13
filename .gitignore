@@ -46,3 +46,12 @@ apps/mobile/.flutter-plugins-dependencies
 tmp/
 temp/
 *.tmp
+
+/apps/web/.env
+/apps/api/.env
+
+.cursorrules
+AGENTS.md
+CLAUDE.md
+.claude
+.ai

@@ -1,0 +1,52 @@
+name: customer
+description: FaB-O2O Customer App - Order food, call ride, scan QR
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management
+  flutter_riverpod: ^2.5.0
+  hooks_riverpod: ^2.5.0
+  riverpod_annotation: ^2.3.5
+
+  # Navigation
+  go_router: ^14.0.0
+
+  # HTTP Client
+  dio: ^5.0.0
+
+  # Local Storage
+  flutter_secure_storage: ^9.0.0
+  shared_preferences: ^2.2.2
+  trackasia_gl: ^2.0.3
+  # Code Generation
+  freezed_annotation: ^2.4.1
+  json_annotation: ^4.8.1
+  
+  # UI Components
+  cupertino_icons: ^1.0.8
+  cached_network_image: ^3.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # Code Generation
+  build_runner: ^2.4.8
+  freezed: ^2.4.7
+  json_serializable: ^6.7.1
+  riverpod_generator: ^2.3.5
+
+  # Linting
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

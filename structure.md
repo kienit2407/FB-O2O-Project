@@ -55,28 +55,82 @@
 ```
 fab-o2o/
 ├── apps/
-│   ├── api/                      # NestJS Backend
-│   ├── web/                      # React Web Portal
-│   └── mobile/                   # Flutter Mobile App
+│   ├── api-gateway/              # NestJS API Gateway (BFF)
+│   ├── auth-service/             # Authentication & Authorization
+│   ├── user-service/             # User profiles, devices
+│   ├── merchant-service/         # Merchants, brands, menu management
+│   ├── order-service/            # Orders, carts, table sessions
+│   ├── ride-service/             # Rides, driver matching, tracking
+│   ├── payment-service/          # Payments, wallets, withdrawals
+│   ├── notification-service/     # Push notifications, chat, emails
+│   ├── promotion-service/        # Vouchers, promotions, flash sales
+│   ├── search-service/           # Elasticsearch (optional)
+│   ├── ai-service/               # Python FastAPI - Recommendation engine
+│   │
+│   ├── web/                      # React Web Portal (Admin + Merchant)
+│   └── mobile/                   # Flutter Mobile App (Customer + Driver)
 │
 ├── packages/
-│   ├── contracts/                # Shared API types + Zod schemas
+│   ├── contracts/                # Shared API types + Event schemas
+│   ├── shared-utils/             # Common utilities, validators
 │   └── tsconfig/                 # Shared TypeScript config
 │
 ├── infra/
-│   ├── docker/                   # Dockerfiles, nginx, mongo, redis
+│   ├── docker/                   # Dockerfiles, docker-compose
 │   ├── k8s/                      # Kubernetes manifests
 │   └── scripts/                  # Build/deploy/migrate scripts
 │
 ├── docs/
 │   ├── adr/                      # Architecture Decision Records
-│   └── api/                      # OpenAPI + Postman collection
+│   └── api/                      # OpenAPI specs, Postman collections
 │
 ├── .github/                      # CI/CD pipelines
 ├── .editorconfig
 ├── .gitignore
 ├── biome.json                    # Linter/Formatter
 └── README.md
+```
+
+### 3.1 Service Communication
+
+| Type | Protocol | Use Case |
+|------|----------|----------|
+| **Gateway → Services** | REST/HTTP | External API requests |
+| **Service → Service** | gRPC (optional) | High-performance internal calls |
+| **Async Events** | Kafka | Event-driven communication |
+| **Real-time** | WebSocket | Chat, live tracking |
+
+### 3.2 Event-Driven Architecture (Kafka Topics)
+
+```
+auth.events:
+  - user.verified
+  - user.profile.updated
+
+order.events:
+  - order.created
+  - order.status.changed
+  - order.completed
+
+ride.events:
+  - ride.requested
+  - ride.assigned
+  - ride.started
+  - ride.completed
+
+payment.events:
+  - payment.initiated
+  - payment.completed
+  - payment.failed
+  - wallet.updated
+
+notification.events:
+  - notification.push
+  - notification.email
+
+merchant.events:
+  - merchant.approveda
+  - menu.updated
 ```
 
 ---
@@ -172,54 +226,442 @@ PATCH  /notifications/:id/read    # Đánh dấu đã đọc
 
 ## 5. APPLICATION STRUCTURES
 
-### 5.1 NestJS Backend (`apps/api/`)
+### 5.1 Microservices Structure
+
+Tất cả microservices đều tuân theo cấu trúc chuẩn NestJS:
 
 ```
-apps/api/
+apps/{service-name}/
 ├── src/
-│   ├── main.ts                   # Bootstrap
+│   ├── main.ts                   # Service bootstrap
 │   ├── app.module.ts             # Root module
 │   │
-│   ├── common/                   # Shared utilities
-│   │   ├── decorators/           # Custom decorators
-│   │   ├── filters/              # Exception filters
-│   │   ├── guards/               # Auth guards
-│   │   ├── interceptors/         # Logging, transform
-│   │   ├── pipes/                # Validation pipes
-│   │   └── utils/                # Helper functions
-│   │
-│   ├── config/                   # Configuration
-│   │   ├── database.config.ts
-│   │   ├── redis.config.ts
-│   │   └── app.config.ts
+│   ├── common/                   # Shared utilities (guards, filters, pipes)
+│   ├── config/                   # Database, Redis, Kafka config
 │   │
 │   ├── modules/                  # Feature modules
-│   │   ├── auth/
-│   │   │   ├── auth.module.ts
-│   │   │   ├── auth.controller.ts
-│   │   │   ├── auth.service.ts
-│   │   │   ├── strategies/       # Passport strategies
-│   │   │   └── dto/
-│   │   │
-│   │   ├── users/
-│   │   ├── merchants/
-│   │   ├── products/
-│   │   ├── orders/
-│   │   ├── rides/
-│   │   ├── payments/
-│   │   ├── promotions/
-│   │   ├── chat/
-│   │   └── notifications/
+│   │   ├── {feature}/
+│   │   │   ├── {feature}.module.ts
+│   │   │   ├── {feature}.controller.ts
+│   │   │   ├── {feature}.service.ts
+│   │   │   ├── dto/
+│   │   │   └── events/           # Kafka event producers/consumers
 │   │
 │   └── database/
 │       ├── schemas/              # Mongoose schemas
-│       └── seeders/              # Seed data
+│       └── seeders/
 │
-├── test/                         # E2E tests
+├── test/
 ├── nest-cli.json
 ├── tsconfig.json
 └── package.json
 ```
+
+### 5.1.1 API Gateway (`apps/api-gateway/`)
+
+```
+apps/api-gateway/
+├── src/
+│   ├── main.ts                   # Gateway bootstrap
+│   ├── app.module.ts
+│   │
+│   ├── config/                   # Routes configuration
+│   │   └── routes.ts
+│   │
+│   ├── gateway/                  # Custom gateway logic
+│   │   ├── auth.guard.ts         # Verify JWT tokens
+│   │   ├── rate-limit.guard.ts   # Rate limiting
+│   │   └── transform.interceptor.ts  # Response transform
+│   │
+│   └── modules/
+│       ├── auth/                 # Proxy to auth-service
+│       ├── users/                # Proxy to user-service
+│       ├── merchants/            # Proxy to merchant-service
+│       ├── orders/               # Proxy to order-service
+│       ├── rides/                # Proxy to ride-service
+│       ├── payments/             # Proxy to payment-service
+│       └── promotions/           # Proxy to promotion-service
+```
+
+**Responsibilities:**
+- Request routing đến các microservices tương ứng
+- Authentication/Authorization (JWT verification)
+- Rate limiting & throttling
+- Response aggregation (nếu cần)
+- Load balancing
+
+---
+
+### 5.1.2 Auth Service (`apps/auth-service/`)
+
+```
+apps/auth-service/
+├── src/
+│   ├── modules/
+│   │   ├── auth/
+│   │   │   ├── auth.controller.ts
+│   │   │   ├── auth.service.ts
+│   │   │   ├── strategies/
+│   │   │   │   ├── jwt.strategy.ts
+│   │   │   │   └── otp.strategy.ts
+│   │   │   └── events/
+│   │   │       ├── user-verified.event.ts
+│   │   │       └── user-verified.handler.ts
+│   │   └── otp/
+│   │       ├── otp.controller.ts
+│   │       └── otp.service.ts
+│   │
+│   └── database/
+│       └── schemas/
+│           ├── user.schema.ts
+│           ├── otp-code.schema.ts
+│           └── user-device.schema.ts
+```
+
+**Responsibilities:**
+- OTP verification (phone number)
+- JWT token generation & validation
+- Login/Logout (email/password cho merchant/admin)
+- Refresh token rotation
+- Device management (FCM tokens)
+
+---
+
+### 5.1.3 User Service (`apps/user-service/`)
+
+```
+apps/user-service/
+├── src/
+│   ├── modules/
+│   │   ├── users/
+│   │   │   ├── users.controller.ts
+│   │   │   ├── users.service.ts
+│   │   │   └── events/
+│   │   │       └── user-profile-updated.handler.ts
+│   │   ├── customer-profiles/
+│   │   └── driver-profiles/
+│   │       ├── driver-profiles.service.ts
+│   │       └── verification/      # Driver verification docs
+│   │
+│   └── database/
+│       └── schemas/
+│           ├── user.schema.ts
+│           ├── customer-profile.schema.ts
+│           ├── driver-profile.schema.ts
+│           └── merchant-staff.schema.ts
+```
+
+**Responsibilities:**
+- User profile management
+- Customer profiles (delivery address, preferences)
+- Driver profiles (vehicle info, documents, rating)
+- Merchant staff profiles
+
+---
+
+### 5.1.4 Merchant Service (`apps/merchant-service/`)
+
+```
+apps/merchant-service/
+├── src/
+│   ├── modules/
+│   │   ├── brands/
+│   │   │   ├── brands.controller.ts
+│   │   │   └── brands.service.ts
+│   │   ├── merchants/
+│   │   │   ├── merchants.controller.ts
+│   │   │   ├── merchants.service.ts
+│   │   │   └── events/
+│   │   │       └── merchant-approved.handler.ts
+│   │   ├── products/
+│   │   │   ├── products.controller.ts
+│   │   │   ├── products.service.ts
+│   │   │   ├── options/
+│   │   │   └── toppings/
+│   │   ├── categories/
+│   │   └── menus/
+│   │       ├── menu-templates.service.ts
+│   │       └── menu-overrides.service.ts
+│   │
+│   └── database/
+│       └── schemas/
+│           ├── brand.schema.ts
+│           ├── merchant.schema.ts
+│           ├── category.schema.ts
+│           ├── product.schema.ts
+│           ├── option.schema.ts
+│           ├── topping.schema.ts
+│           ├── menu-template.schema.ts
+│           ├── menu-override.schema.ts
+│           └── table.schema.ts
+```
+
+**Responsibilities:**
+- Brand & merchant management
+- Menu management (categories, products, options, toppings)
+- Menu templates (brand-level) & overrides (merchant-level)
+- Table management (dine-in QR)
+- Business hours management
+
+---
+
+### 5.1.5 Order Service (`apps/order-service/`)
+
+```
+apps/order-service/
+├── src/
+│   ├── modules/
+│   │   ├── carts/
+│   │   │   ├── carts.controller.ts
+│   │   │   └── carts.service.ts
+│   │   ├── orders/
+│   │   │   ├── orders.controller.ts
+│   │   │   ├── orders.service.ts
+│   │   │   ├── workflow/
+│   │   │   │   └── order-status-machine.ts
+│   │   │   └── events/
+│   │   │       ├── order-created.event.ts
+│   │   │       ├── order-status-changed.event.ts
+│   │   │       └── order-completed.event.ts
+│   │   ├── table-sessions/
+│   │   │   └── dine-in logic
+│   │   └── reviews/
+│   │
+│   └── database/
+│       └── schemas/
+│           ├── cart.schema.ts
+│           ├── cart-item.schema.ts
+│           ├── order.schema.ts
+│           ├── order-item.schema.ts
+│           ├── table-session.schema.ts
+│           └── review.schema.ts
+```
+
+**Responsibilities:**
+- Cart management
+- Order creation & lifecycle
+- Order status workflow
+- Table sessions (dine-in)
+- Order reviews & ratings
+- Emit events to other services (payment, notification, etc.)
+
+---
+
+### 5.1.6 Ride Service (`apps/ride-service/`)
+
+```
+apps/ride-service/
+├── src/
+│   ├── modules/
+│   │   ├── rides/
+│   │   │   ├── rides.controller.ts
+│   │   │   ├── rides.service.ts
+│   │   │   ├── matching/              # Driver matching algorithm
+│   │   │   │   ├── driver-selector.service.ts
+│   │   │   │   └── matching-engine.service.ts
+│   │   │   └── events/
+│   │   │       ├── ride-requested.event.ts
+│   │   │       ├── ride-assigned.event.ts
+│   │   │       ├── ride-started.event.ts
+│   │   │       └── ride-completed.event.ts
+│   │   ├── tracking/                 # Real-time location tracking
+│   │   │   └── location-updates.service.ts
+│   │   └── pricing/
+│   │       └── fare-calculator.service.ts
+│   │
+│   └── database/
+│       └── schemas/
+│           ├── ride.schema.ts
+│           └── ride-tracking.schema.ts
+```
+
+**Responsibilities:**
+- Ride creation & matching
+- Driver assignment algorithm (distance, rating, batching)
+- Real-time location tracking
+- Fare calculation (distance, time, surge pricing)
+- Ride status workflow
+- OTP verification for pickup/dropoff
+
+---
+
+### 5.1.7 Payment Service (`apps/payment-service/`)
+
+```
+apps/payment-service/
+├── src/
+│   ├── modules/
+│   │   ├── payments/
+│   │   │   ├── payments.controller.ts
+│   │   │   ├── payments.service.ts
+│   │   │   ├── gateways/
+│   │   │   │   ├── vnpay.gateway.ts
+│   │   │   │   ├── momo.gateway.ts
+│   │   │   │   └── zalopay.gateway.ts
+│   │   │   └── events/
+│   │   │       ├── payment-initiated.event.ts
+│   │   │       ├── payment-completed.event.ts
+│   │   │       └── payment-failed.event.ts
+│   │   ├── wallets/
+│   │   │   ├── wallets.controller.ts
+│   │   │   ├── wallets.service.ts
+│   │   │   └── events/
+│   │   │       └── wallet-updated.event.ts
+│   │   ├── withdrawals/
+│   │   └── commissions/
+│   │
+│   └── database/
+│       └── schemas/
+│           ├── payment.schema.ts
+│           ├── wallet.schema.ts
+│           ├── wallet-transaction.schema.ts
+│           ├── withdrawal.schema.ts
+│           └── commission.schema.ts
+```
+
+**Responsibilities:**
+- Payment gateway integration (VNPay, MoMo, ZaloPay)
+- Wallet management (driver, merchant)
+- Withdrawal requests
+- Commission calculation & settlement
+- Payment webhooks handling
+
+---
+
+### 5.1.8 Notification Service (`apps/notification-service/`)
+
+```
+apps/notification-service/
+├── src/
+│   ├── modules/
+│   │   ├── notifications/
+│   │   │   ├── notifications.controller.ts
+│   │   │   ├── notifications.service.ts
+│   │   │   └── events/
+│   │   │       ├── notification-push.handler.ts
+│   │   │       └── notification-email.handler.ts
+│   │   ├── push/
+│   │   │   └── fcm.service.ts
+│   │   ├── email/
+│   │   │   └── resend.service.ts
+│   │   ├── chat/
+│   │   │   ├── chat.gateway.ts       # WebSocket gateway
+│   │   │   ├── chat.service.ts
+│   │   │   └── events/
+│   │   └── in-app/                   # In-app notifications
+│   │
+│   └── database/
+│       └── schemas/
+│           ├── notification.schema.ts
+│           ├── chat-room.schema.ts
+│           └── chat-message.schema.ts
+```
+
+**Responsibilities:**
+- Push notifications (Firebase FCM)
+- Email notifications (Resend)
+- Real-time chat (WebSocket)
+- In-app notifications
+- Template management for different notification types
+
+---
+
+### 5.1.9 Promotion Service (`apps/promotion-service/`)
+
+```
+apps/promotion-service/
+├── src/
+│   ├── modules/
+│   │   ├── promotions/
+│   │   │   ├── promotions.controller.ts
+│   │   │   └── promotions.service.ts
+│   │   ├── vouchers/
+│   │   │   ├── vouchers.controller.ts
+│   │   │   ├── vouchers.service.ts
+│   │   │   ├── validation/
+│   │   │   │   └── voucher-validator.service.ts
+│   │   │   └── usage/
+│   │   │       └── voucher-usage.handler.ts
+│   │   ├── flash-sales/
+│   │   │   ├── flash-sales.controller.ts
+│   │   │   └── flash-sales.service.ts
+│   │   └── campaigns/
+│   │
+│   └── database/
+│       └── schemas/
+│           ├── promotion.schema.ts
+│           ├── voucher.schema.ts
+│           ├── voucher-usage.schema.ts
+│           └── flash-sale.schema.ts
+```
+
+**Responsibilities:**
+- Voucher creation & management
+- Voucher validation (stacking rules)
+- Promotion campaigns
+- Flash sale management
+- Voucher usage tracking
+
+---
+
+### 5.1.10 Search Service (`apps/search-service/`) - Optional
+
+```
+apps/search-service/
+├── src/
+│   ├── modules/
+│   │   ├── search/
+│   │   │   ├── search.controller.ts
+│   │   │   ├── search.service.ts
+│   │   │   └── indexes/
+│   │   │       ├── merchant-index.ts
+│   │   │       └── product-index.ts
+│   │   └── events/
+│   │       └── sync-data-to-elasticsearch.handler.ts
+│   │
+│   └── database/
+│       └── schemas/                  # Elasticsearch index schemas
+```
+
+**Responsibilities:**
+- Full-text search (merchants, products)
+- Geospatial search (nearby merchants)
+- Search autocomplete
+- Real-time data sync from MongoDB → Elasticsearch
+
+---
+
+### 5.1.11 AI Service (`apps/ai-service/`) - Python FastAPI
+
+```
+apps/ai-service/
+├── src/
+│   ├── main.py                     # FastAPI bootstrap
+│   ├── app/
+│   │   ├── api/
+│   │   │   └── v1/
+│   │   │       └── recommend.py     # Recommendation endpoints
+│   │   ├── core/
+│   │   │   ├── config.py
+│   │   │   └── kafka_consumer.py
+│   │   ├── ml/
+│   │   │   ├── models/
+│   │   │   │   └── recommendation_engine.py
+│   │   │   └── training/
+│   │   └── database/
+│   │       └── mongodb.py
+│   └── tests/
+├── requirements.txt
+└── pyproject.toml
+```
+
+**Responsibilities:**
+- Food/merchant recommendation
+- Driver matching optimization
+- Dynamic pricing prediction
+- Consume events from Kafka for training
+
+---
 
 ### 5.2 React Web Portal (`apps/web/`)
 
@@ -336,60 +778,105 @@ apps/mobile/
 
 ## 6. DATABASE COLLECTIONS
 
-### 6.1 Users & Authentication
-| Collection | Mô tả |
-|------------|-------|
-| `users` | Thông tin user (customer, driver, merchant_staff, admin) |
-| `otp_codes` | Mã OTP xác thực |
-| `user_devices` | FCM tokens cho push notification |
-| `customer_profiles` | Profile bổ sung cho customer |
-| `driver_profiles` | Profile tài xế (xe, giấy tờ, wallet) |
+### 6.1 Service → Collections Mapping
 
-### 6.2 Merchants & Products
-| Collection | Mô tả |
-|------------|-------|
-| `brands` | Thương hiệu (Highland, Phúc Long...) |
-| `merchants` | Chi nhánh/cửa hàng |
-| `categories` | Danh mục sản phẩm |
-| `products` | Sản phẩm/món ăn |
-| `toppings` | Topping cho sản phẩm |
-| `menu_templates` | Template menu dùng chung cho brand |
-| `menu_overrides` | Override giá/trạng thái theo chi nhánh |
+| Service | Collections |
+|---------|-------------|
+| **auth-service** | `users`, `otp_codes`, `user_devices` |
+| **user-service** | `customer_profiles`, `driver_profiles`, `merchant_staff_profiles` |
+| **merchant-service** | `brands`, `merchants`, `categories`, `products`, `options`, `toppings`, `menu_templates`, `menu_overrides`, `tables` |
+| **order-service** | `carts`, `cart_items`, `orders`, `order_items`, `table_sessions`, `reviews` |
+| **ride-service** | `rides`, `ride_tracking` |
+| **payment-service** | `payments`, `wallets`, `wallet_transactions`, `withdrawals`, `commissions` |
+| **promotion-service** | `promotions`, `vouchers`, `voucher_usages`, `flash_sales` |
+| **notification-service** | `notifications`, `chat_rooms`, `chat_messages` |
+| **search-service** | Elasticsearch indexes: `merchants`, `products` |
 
-### 6.3 Orders & Rides
-| Collection | Mô tả |
-|------------|-------|
-| `carts` | Giỏ hàng |
-| `orders` | Đơn hàng (delivery, dine-in) |
-| `order_items` | Chi tiết item trong đơn |
-| `rides` | Chuyến đi xe |
-| `tables` | Bàn trong quán (dine-in) |
-| `table_sessions` | Phiên đặt món tại bàn |
+---
 
-### 6.4 Payments & Wallet
-| Collection | Mô tả |
-|------------|-------|
-| `payments` | Giao dịch thanh toán |
-| `wallets` | Ví driver/merchant |
-| `wallet_transactions` | Lịch sử giao dịch ví |
-| `withdrawals` | Yêu cầu rút tiền |
-| `commissions` | Phí hoa hồng platform |
+### 6.2 Users & Authentication Collections (auth-service, user-service)
 
-### 6.5 Promotions
-| Collection | Mô tả |
-|------------|-------|
-| `promotions` | Chương trình khuyến mãi |
-| `vouchers` | Mã voucher |
-| `voucher_usages` | Lịch sử sử dụng voucher |
-| `flash_sales` | Flash sale campaigns |
+| Collection | Description | Indexes |
+|------------|-------------|---------|
+| `users` | User accounts (customer, driver, merchant_staff, admin) | phone, email, role |
+| `otp_codes` | OTP verification codes | phone, code, expires_at |
+| `user_devices` | FCM tokens for push notifications | user_id |
+| `customer_profiles` | Customer details (addresses, preferences) | user_id |
+| `driver_profiles` | Driver details (vehicle, documents, rating) | user_id, status |
+| `merchant_staff_profiles` | Merchant staff details | user_id, merchant_id |
 
-### 6.6 Others
-| Collection | Mô tả |
-|------------|-------|
-| `reviews` | Đánh giá đơn/chuyến |
-| `chat_rooms` | Phòng chat |
-| `chat_messages` | Tin nhắn |
-| `notifications` | Thông báo |
+---
+
+### 6.3 Merchant & Product Collections (merchant-service)
+
+| Collection | Description | Indexes |
+|------------|-------------|---------|
+| `brands` | Brand/company (Highland, Phúc Long) | slug, status |
+| `merchants` | Store branches | brand_id, location, status |
+| `categories` | Product categories | merchant_id, name |
+| `products` | Products/menu items | merchant_id, category_id |
+| `options` | Product options (size, temperature) | product_id |
+| `toppings` | Product toppings (milk, sugar) | merchant_id |
+| `menu_templates` | Shared menu template | brand_id |
+| `menu_overrides` | Per-merchant price/status overrides | merchant_id, product_id |
+| `tables` | Restaurant tables (for dine-in QR) | merchant_id, qr_code |
+
+---
+
+### 6.4 Order & Ride Collections (order-service, ride-service)
+
+| Collection | Description | Indexes |
+|------------|-------------|---------|
+| `carts` | Shopping carts | user_id |
+| `cart_items` | Items in cart | cart_id, product_id |
+| `orders` | Orders (delivery, dine-in) | user_id, merchant_id, status |
+| `order_items` | Order line items | order_id |
+| `table_sessions` | Dine-in table sessions | table_id, status |
+| `reviews` | Order/ride reviews | order_id, user_id |
+| `rides` | Ride requests | user_id, driver_id, status |
+| `ride_tracking` | Real-time ride locations | ride_id, timestamp |
+
+---
+
+### 6.5 Payment & Wallet Collections (payment-service)
+
+| Collection | Description | Indexes |
+|------------|-------------|---------|
+| `payments` | Payment transactions | order_id, gateway, status |
+| `wallets` | User wallets (driver, merchant) | user_id, balance |
+| `wallet_transactions` | Wallet history | wallet_id, type |
+| `withdrawals` | Withdrawal requests | user_id, status |
+| `commissions` | Platform commissions | order_id, merchant_id |
+
+---
+
+### 6.6 Promotion Collections (promotion-service)
+
+| Collection | Description | Indexes |
+|------------|-------------|---------|
+| `promotions` | Promo campaigns | type, status |
+| `vouchers` | Voucher codes | code, type, status |
+| `voucher_usages` | Voucher usage history | user_id, voucher_id |
+| `flash_sales` | Flash sale campaigns | status, start_at |
+
+---
+
+### 6.7 Notification & Chat Collections (notification-service)
+
+| Collection | Description | Indexes |
+|------------|-------------|---------|
+| `notifications` | Push/in-app notifications | user_id, read |
+| `chat_rooms` | Chat rooms | participants |
+| `chat_messages` | Chat messages | room_id, timestamp |
+
+---
+
+### 6.8 Search Indexes (search-service)
+
+| Index | Description | Fields |
+|-------|-------------|--------|
+| `merchants` | Merchant search | name, tags, location |
+| `products` | Product search | name, description, merchant_id |
 
 ---
 
@@ -423,11 +910,12 @@ Priority Order:
 | Phase | Nội dung | Status |
 |-------|----------|--------|
 | **Phase 1** | Planning & Documentation | ✅ In Progress |
-| **Phase 2** | Project Setup (Monorepo, NestJS, Flutter, React) | ⏳ Pending |
-| **Phase 3** | Core Features (Auth, Menu, Orders) | ⏳ Pending |
-| **Phase 4** | Advanced Features (Payments, AI, Chat) | ⏳ Pending |
-| **Phase 5** | Testing & Optimization | ⏳ Pending |
-| **Phase 6** | Deployment & Launch | ⏳ Pending |
+| **Phase 2** | Project Setup (Monorepo, Microservices, Flutter, React) | ⏳ Pending |
+| **Phase 3** | Core Services (Auth, User, Merchant, Order) | ⏳ Pending |
+| **Phase 4** | Advanced Services (Ride, Payment, Notification, Promotion) | ⏳ Pending |
+| **Phase 5** | AI Service & Search | ⏳ Pending |
+| **Phase 6** | Testing & Optimization | ⏳ Pending |
+| **Phase 7** | Deployment & Launch | ⏳ Pending |
 
 ---
 

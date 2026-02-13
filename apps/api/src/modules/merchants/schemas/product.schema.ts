@@ -1,0 +1,61 @@
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
+
+export type ProductDocument = Product & Document;
+
+@Schema({ collection: 'products', timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } })
+export class Product {
+  _id: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'Merchant', required: true })
+  merchant_id: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'Category', required: true })
+  category_id: Types.ObjectId;
+
+  @Prop({ required: true })
+  name: string;
+
+  @Prop()
+  description: string;
+
+  @Prop({ type: [String], default: [] })
+  image_urls: string[];
+
+  @Prop({ required: true, min: 0 })
+  base_price: number;
+
+  @Prop({ default: 0 })
+  sale_price: number;
+
+  @Prop({ default: true })
+  is_available: boolean;
+
+  @Prop({ default: true })
+  is_active: boolean;
+
+  @Prop({ default: 0 })
+  sort_order: number;
+
+  @Prop({ default: 0 })
+  total_sold: number;
+
+  @Prop({ default: 0 })
+  average_rating: number;
+
+  // Toppings áp dụng cho sản phẩm này
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Topping' }], default: [] })
+  topping_ids: Types.ObjectId[];
+
+  @Prop({ type: Date, default: null })
+  deleted_at: Date | null;
+
+  created_at: Date;
+  updated_at: Date;
+}
+
+export const ProductSchema = SchemaFactory.createForClass(Product);
+
+ProductSchema.index({ merchant_id: 1, is_active: 1 });
+ProductSchema.index({ category_id: 1, is_active: 1 });
+ProductSchema.index({ 'topping_ids': 1 });
